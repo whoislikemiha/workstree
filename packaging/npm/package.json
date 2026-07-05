@@ -1,0 +1,26 @@
+{
+  "name": "workstree",
+  "version": "0.0.1",
+  "description": "Worktrees that work on the first try — a repo convention (worktree.toml) + tiny CLI that turns a fresh git worktree into a working environment. This package reserves the name; the tool is distributed via GitHub releases for now.",
+  "bin": {
+    "workstree": "index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whoislikemiha/workstree.git"
+  },
+  "homepage": "https://github.com/whoislikemiha/workstree",
+  "keywords": [
+    "git",
+    "worktree",
+    "agents",
+    "bootstrap",
+    "cli"
+  ],
+  "author": "Mihailo Bubnjevic",
+  "license": "MIT"
+}
