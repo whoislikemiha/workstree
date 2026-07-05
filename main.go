@@ -65,7 +65,24 @@ func main() {
 		SilenceErrors: true,
 	}
 
-	root.AddCommand(initCmd, checkCmd)
+	var writeSuggestion bool
+	suggestCmd := &cobra.Command{
+		Use:   "suggest [path]",
+		Short: "Inspect the repo and print a draft worktree.toml (--write to save it)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := "."
+			if len(args) == 1 {
+				path = args[0]
+			}
+			return runSuggest(path, writeSuggestion)
+		},
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+	suggestCmd.Flags().BoolVar(&writeSuggestion, "write", false, "write the draft to worktree.toml (refuses to overwrite)")
+
+	root.AddCommand(initCmd, checkCmd, suggestCmd)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "workstree: %v\n", err)
@@ -108,6 +125,36 @@ func runInit(path string) error {
 	if err := b.Run(); err != nil {
 		return &stepError{err}
 	}
+	return nil
+}
+
+func runSuggest(path string, write bool) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	_, source, err := ResolveRoots(abs)
+	if err != nil {
+		return err
+	}
+	s, err := Suggest(source)
+	if err != nil {
+		return err
+	}
+	draft := s.Render()
+
+	if !write {
+		fmt.Print(draft)
+		return nil
+	}
+	dst := filepath.Join(source, ConfigFileName)
+	if _, err := os.Stat(dst); err == nil {
+		return fmt.Errorf("%s already exists; refusing to overwrite", dst)
+	}
+	if err := os.WriteFile(dst, []byte(draft), 0o644); err != nil {
+		return err
+	}
+	fmt.Printf("wrote %s (draft — verify on a throwaway worktree before committing)\n", dst)
 	return nil
 }
 

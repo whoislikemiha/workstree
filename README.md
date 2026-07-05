@@ -2,7 +2,7 @@
 
 > Worktrees that work on the first try.
 
-`git worktree add` gives you a clean checkout — and none of what makes it *runnable*:
+`git worktree add` gives you a clean checkout — and none of what makes it _runnable_:
 `node_modules`, venvs, `.env` files, build caches. Everything gitignored stays behind.
 Humans rediscover this occasionally; coding agents rediscover it every single time,
 burning their first effort on `npm install` archaeology or "fixing" a build that was
@@ -43,8 +43,9 @@ notes = """
 """
 ```
 
-The file is named after the primitive (`worktree.toml`), not this tool — any tool is
+The file is named after the primitive (`worktree.toml`), any tool is
 welcome to honor the same convention.
+Anything that should be carried over in a worktree should be in `worktree.toml`.
 
 ## Install
 
@@ -57,9 +58,11 @@ Binary releases (curl installer, Homebrew tap) coming with v0.1.
 ## Usage
 
 ```
-workstree                # bootstrap the current directory's worktree
-workstree init <path>    # bootstrap the worktree at <path>
-workstree check [path]   # validate worktree.toml without executing
+workstree                  # bootstrap the current directory's worktree
+workstree init <path>      # bootstrap the worktree at <path>
+workstree check [path]     # validate worktree.toml without executing
+workstree suggest [path]   # inspect the repo, print a draft worktree.toml
+workstree suggest --write  # ...and save it (refuses to overwrite)
 ```
 
 Exit codes: `0` worktree ready · `1` a copy/setup/ready step failed · `2` usage or
@@ -75,6 +78,19 @@ Behavior notes:
 - Config is read from the target worktree first (it's committed, so it's normally
   there), falling back to the source checkout.
 
+## Who writes `worktree.toml`?
+
+`workstree suggest` drafts it for you: it detects the ecosystem from lockfiles
+(pnpm/npm/yarn/bun, uv/poetry/pip, go, cargo, bundler, composer) and finds git-ignored
+env files that exist in your checkout (`.env`, `.env.*`, `.envrc`, `*.local`) as copy
+candidates. The draft is deliberately **not** executed on trust: review it, verify it,
+commit it.
+
+Detection is generator-time only — `init` never guesses. What runs in your worktree is
+exactly what the committed file says, nothing else. That's the audit property: the
+copy list is usually secrets, and the setup list is arbitrary shell — both deserve a
+reviewed, committed declaration rather than runtime magic.
+
 ## For agents
 
 Add one line to your repo's `AGENTS.md` / `CLAUDE.md`:
@@ -82,11 +98,10 @@ Add one line to your repo's `AGENTS.md` / `CLAUDE.md`:
 > After creating a git worktree, run `workstree init <path>` (config in
 > `worktree.toml`) to make it a working environment.
 
-For a repo that doesn't have `worktree.toml` yet, an agent can write one: inspect
-lockfiles, README, and CI config; propose setup commands and the copy list; **verify
-by creating a throwaway worktree and running the proposed setup there**; then commit
-the config as a reviewable diff. A config derived from the README without
-verification is worthless — always verify.
+For a repo without `worktree.toml`: run `workstree suggest --write`, then **verify —
+create a throwaway worktree and run `workstree init` on it** — adjust until the ready
+check passes, and commit the config as a reviewable diff. Never commit an unverified
+draft.
 
 ## Known limitations
 
