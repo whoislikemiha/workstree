@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test ./... -count=1
+      - name: end-to-end smoke
+        run: |
+          go build -o /tmp/workstree .
+          git config --global user.email ci@ci && git config --global user.name ci
+          git config --global init.defaultBranch main
+          mkdir /tmp/demo && cd /tmp/demo && git init -q
+          printf 'setup = ["touch marker"]\nready = "test -f marker"\n' > worktree.toml
+          git add . && git commit -qm init
+          git worktree add -q /tmp/demo-wt
+          /tmp/workstree init /tmp/demo-wt
+          /tmp/workstree check /tmp/demo-wt
+          /tmp/workstree suggest /tmp/demo

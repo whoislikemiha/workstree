@@ -88,7 +88,11 @@ $ workstree init ../myrepo-feature
 $ go install github.com/whoislikemiha/workstree@latest
 ```
 
-Binary releases (curl installer, Homebrew tap) coming with v0.1.
+Or the curl installer (linux/macos, amd64/arm64, no sudo — installs to `~/.local/bin`):
+
+```console
+$ curl -fsSL https://raw.githubusercontent.com/whoislikemiha/workstree/main/install.sh | sh
+```
 
 ### Usage
 
