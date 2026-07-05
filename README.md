@@ -6,24 +6,17 @@
 `node_modules`, venvs, `.env` files, build caches. Everything gitignored stays behind.
 Humans rediscover this occasionally; coding agents rediscover it every single time,
 burning their first effort on `npm install` archaeology or "fixing" a build that was
-never broken.
+never broken. Every agent tool solves this privately and differently; no repo can
+declare it once.
 
-**workstree** is a one-file convention plus a tiny CLI that turns a fresh worktree
-into a working environment:
-
-```console
-$ git worktree add ../myrepo-feature
-$ workstree init ../myrepo-feature
-==> copy: .env.local
-==> setup 1/2: pnpm install
-==> setup 2/2: uv sync
-==> ready check: pnpm run typecheck
-==> worktree ready: ../myrepo-feature
-```
+This project is **a convention** — `worktree.toml`, one committed file declaring what
+a fresh worktree needs to become a working environment — plus **`workstree`, its
+reference CLI**. The convention is the point; the tool just executes it. Any tool is
+welcome to implement the same convention.
 
 ## The convention: `worktree.toml`
 
-One declarative file at repo root, committed:
+One declarative TOML file at repo root, committed to the repo:
 
 ```toml
 # What a fresh `git worktree add` needs to actually work.
@@ -43,11 +36,53 @@ notes = """
 """
 ```
 
-The file is named after the primitive (`worktree.toml`), any tool is
-welcome to honor the same convention.
-Anything that should be carried over in a worktree should be in `worktree.toml`.
+### Terms
 
-## Install
+- **Target**: the fresh worktree being bootstrapped.
+- **Source checkout**: the main working tree the worktree was created from (resolved
+  via `git rev-parse --git-common-dir`).
+
+### Fields
+
+| Field | Type | Meaning |
+|---|---|---|
+| `setup` | array of strings | Shell commands run **in the target**, in order, fail-fast: a nonzero exit stops the bootstrap. |
+| `copy` | array of strings | Paths (files or directories) copied **from the source checkout into the target**. Relative to repo root; absolute paths and `..` escapes are invalid. These are untracked files — tracked files travel with the checkout already. |
+| `ready` | string | Optional shell command run in the target after setup. Nonzero exit means the worktree is **not** ready. |
+| `cache` | table | Advisory hints (`shared`/`private` path arrays) about caches that may / must not be shared across worktrees. Tools may ignore. |
+| `notes` | string | Prose for humans and agents: the *why* behind the entries. |
+
+### Execution semantics
+
+An implementation bootstraps a target by doing exactly this, in this order:
+
+1. **Copy**: for each `copy` entry, copy source-checkout path → same path in target.
+   Never overwrite an existing target path (re-runs must be safe). A missing source
+   path is reported and skipped, not an error. When target *is* the source checkout,
+   copying is a no-op.
+2. **Setup**: run each `setup` command in the target, in order; stop on first failure.
+3. **Ready**: run `ready` if present; nonzero exit = bootstrap failed.
+
+Outcome: **ready** (all steps passed) / **failed** (a step failed) / **config error**.
+Nothing outside the committed file is ever executed or copied — detection, defaults,
+or other magic belong in generators (see `suggest`), never in the bootstrap.
+
+The file is named after the primitive (`worktree.toml`), not after any tool, so the
+convention can outlive its implementations. Anything a worktree needs carried over or
+run belongs in it.
+
+## The reference tool: `workstree`
+
+```console
+$ git worktree add ../myrepo-feature
+$ workstree init ../myrepo-feature
+==> copy: .env.local
+==> setup 1/1: pnpm install
+==> ready check: pnpm run typecheck
+==> worktree ready: ../myrepo-feature
+```
+
+### Install
 
 ```console
 $ go install github.com/whoislikemiha/workstree@latest
@@ -55,7 +90,7 @@ $ go install github.com/whoislikemiha/workstree@latest
 
 Binary releases (curl installer, Homebrew tap) coming with v0.1.
 
-## Usage
+### Usage
 
 ```
 workstree                  # bootstrap the current directory's worktree
@@ -68,28 +103,16 @@ workstree suggest --write  # ...and save it (refuses to overwrite)
 Exit codes: `0` worktree ready · `1` a copy/setup/ready step failed · `2` usage or
 configuration error.
 
-Behavior notes:
-
-- Copy sources come from the **source checkout** (the main working tree the worktree
-  was created from). Files already present in the worktree are never overwritten —
-  re-running `init` is safe.
-- Running `init` in the main checkout itself skips copying (nothing to carry over)
-  and just runs setup/ready.
-- Config is read from the target worktree first (it's committed, so it's normally
-  there), falling back to the source checkout.
+Config is read from the target first (the file is committed, so it's normally there),
+falling back to the source checkout.
 
 ## Who writes `worktree.toml`?
 
-`workstree suggest` drafts it for you: it detects the ecosystem from lockfiles
-(pnpm/npm/yarn/bun, uv/poetry/pip, go, cargo, bundler, composer) and finds git-ignored
-env files that exist in your checkout (`.env`, `.env.*`, `.envrc`, `*.local`) as copy
-candidates. The draft is deliberately **not** executed on trust: review it, verify it,
-commit it.
-
-Detection is generator-time only — `init` never guesses. What runs in your worktree is
-exactly what the committed file says, nothing else. That's the audit property: the
-copy list is usually secrets, and the setup list is arbitrary shell — both deserve a
-reviewed, committed declaration rather than runtime magic.
+`workstree suggest` drafts it: it detects the ecosystem from lockfiles
+(pnpm/npm/yarn/bun, uv/poetry/pip, go, cargo, bundler, composer) and proposes copy
+candidates from git-ignored env-like files that actually exist in your checkout
+(`.env`, `.env.*`, `.envrc`, `*.local`). The draft is deliberately **not** executed on
+trust: review it, verify it, commit it.
 
 ## For agents
 
