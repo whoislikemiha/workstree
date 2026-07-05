@@ -40,6 +40,57 @@ func TestSuggestDetectsEcosystems(t *testing.T) {
 	}
 }
 
+func TestSuggestNestedEcosystems(t *testing.T) {
+	repo := initRepo(t)
+	touch(t, repo, "package-lock.json", "")
+	touch(t, repo, "sidecar/package-lock.json", "")
+	touch(t, repo, "src-tauri/Cargo.lock", "")
+	touch(t, repo, "src-tauri/Cargo.toml", "")
+	// Below scanMaxDepth: must not be detected.
+	touch(t, repo, "a/b/c/package-lock.json", "")
+	// Inside skiplisted/hidden dirs: must not be detected.
+	touch(t, repo, "node_modules/x/package-lock.json", "")
+	touch(t, repo, ".claude/worktrees/y/package-lock.json", "")
+
+	s, err := Suggest(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"npm ci",
+		"cd sidecar && npm ci",
+		"cd src-tauri && cargo fetch",
+	}
+	if len(s.Setup) != len(want) {
+		t.Fatalf("setup = %v, want %v", s.Setup, want)
+	}
+	for i := range want {
+		if s.Setup[i] != want[i] {
+			t.Fatalf("setup[%d] = %q, want %q (all: %v)", i, s.Setup[i], want[i], s.Setup)
+		}
+	}
+	// Ready comes from the root ecosystem only.
+	if s.Ready != "npm run build --if-present" {
+		t.Fatalf("ready = %q", s.Ready)
+	}
+}
+
+func TestSuggestCargoWorkspaceMembersIgnored(t *testing.T) {
+	repo := initRepo(t)
+	touch(t, repo, "Cargo.lock", "")
+	touch(t, repo, "Cargo.toml", "")
+	// Workspace member: Cargo.toml but no lock — must not get its own fetch.
+	touch(t, repo, "crates/member/Cargo.toml", "")
+
+	s, err := Suggest(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Setup) != 1 || s.Setup[0] != "cargo fetch" {
+		t.Fatalf("setup = %v, want [cargo fetch]", s.Setup)
+	}
+}
+
 func TestSuggestEnvFilesOnlyIgnoredOnes(t *testing.T) {
 	repo := initRepo(t)
 	touch(t, repo, ".gitignore", ".env\n.env.local\n")

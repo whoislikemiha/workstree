@@ -28,9 +28,22 @@ var detectors = []detector{
 	{"poetry.lock", "py", "poetry install", ""},
 	{"requirements.txt", "py", "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt", ""},
 	{"go.mod", "go", "go mod download", "go build ./..."},
-	{"Cargo.toml", "rust", "cargo fetch", "cargo check"},
+	// Cargo.lock, not Cargo.toml: workspace members have a Cargo.toml but no
+	// lock; only the workspace root (or a standalone crate) should be fetched.
+	{"Cargo.lock", "rust", "cargo fetch", "cargo check"},
 	{"Gemfile.lock", "ruby", "bundle install", ""},
 	{"composer.lock", "php", "composer install", ""},
+}
+
+// scanMaxDepth: how deep below the repo root to look for nested ecosystems
+// (sidecars, src-tauri, packages/*). Depth 0 is the root itself.
+const scanMaxDepth = 2
+
+// skipDirs are never descended into during detection.
+var skipDirs = map[string]bool{
+	"node_modules": true, "vendor": true, "dist": true, "build": true,
+	"out": true, "target": true, ".venv": true, "venv": true,
+	"coverage": true, "tmp": true,
 }
 
 // envGlobs are untracked-file patterns commonly needed by a working checkout.
@@ -44,20 +57,35 @@ type Suggestion struct {
 }
 
 // Suggest inspects the source checkout and proposes a worktree.toml.
+// Detection covers the root and nested ecosystems up to scanMaxDepth
+// (sidecars, src-tauri, packages/*); nested setup commands are wrapped in
+// `cd <dir> && ...` and ordered root-first.
 func Suggest(root string) (*Suggestion, error) {
 	s := &Suggestion{}
 
-	seenGroup := map[string]bool{}
-	for _, d := range detectors {
-		if seenGroup[d.group] {
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(root, d.marker)); err == nil {
-			s.Setup = append(s.Setup, d.setup)
-			if s.Ready == "" && d.ready != "" {
-				s.Ready = d.ready
+	dirs, err := scanDirs(root)
+	if err != nil {
+		return nil, err
+	}
+	for _, dir := range dirs {
+		seenGroup := map[string]bool{}
+		for _, d := range detectors {
+			if seenGroup[d.group] {
+				continue
 			}
-			seenGroup[d.group] = true
+			if _, err := os.Stat(filepath.Join(root, dir, d.marker)); err == nil {
+				cmd := d.setup
+				if dir != "." {
+					cmd = fmt.Sprintf("cd %s && %s", dir, d.setup)
+				}
+				s.Setup = append(s.Setup, cmd)
+				// Ready check only from the root ecosystem: it runs at repo
+				// root and should reflect the primary build.
+				if dir == "." && s.Ready == "" && d.ready != "" {
+					s.Ready = d.ready
+				}
+				seenGroup[d.group] = true
+			}
 		}
 	}
 
@@ -67,6 +95,35 @@ func Suggest(root string) (*Suggestion, error) {
 	}
 	s.Copy = copies
 	return s, nil
+}
+
+// scanDirs returns "." plus non-hidden, non-skiplisted directories up to
+// scanMaxDepth below root, in deterministic root-first order.
+func scanDirs(root string) ([]string, error) {
+	dirs := []string{"."}
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return nil
+		}
+		rel, rerr := filepath.Rel(root, path)
+		if rerr != nil || rel == "." {
+			return nil
+		}
+		name := d.Name()
+		if strings.HasPrefix(name, ".") || skipDirs[name] {
+			return filepath.SkipDir
+		}
+		if strings.Count(rel, string(filepath.Separator))+1 > scanMaxDepth {
+			return filepath.SkipDir
+		}
+		dirs = append(dirs, rel)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(dirs[1:])
+	return dirs, nil
 }
 
 // ignoredEnvFiles returns env-like files at repo root that exist AND are

@@ -126,6 +126,19 @@ create a throwaway worktree and run `workstree init` on it** — adjust until th
 check passes, and commit the config as a reviewable diff. Never commit an unverified
 draft.
 
+### Skill
+
+This repo ships a skill — [`skills/workstree/SKILL.md`](skills/workstree/SKILL.md) —
+teaching agents to bootstrap worktrees and to *author good `worktree.toml` files*
+(the prune-improve-verify loop, quality bar for entries, known pitfalls). For Claude
+Code, copy it into your project or user skills directory:
+
+```console
+$ mkdir -p ~/.claude/skills/workstree
+$ curl -fsSL https://raw.githubusercontent.com/whoislikemiha/workstree/main/skills/workstree/SKILL.md \
+    -o ~/.claude/skills/workstree/SKILL.md
+```
+
 ## Known limitations
 
 - Worktrees share repo hooks and config; repo-managed hooks (husky etc.) fire inside
