@@ -1,7 +1,6 @@
 # Working on workstree
 
-workstree is a convention (`worktree.toml`) plus its reference CLI. **The convention
-is the product.** The README's Spec section (fields, execution semantics, discovery
+workstree is a convention (`worktree.toml`) plus its reference CLI. The README's Spec section (fields, execution semantics, discovery
 pointer) is the contract: code that changes behavior must change the spec, and spec
 changes break third-party implementors. Rationale and rejected ideas: [DESIGN.md](DESIGN.md).
 
@@ -17,7 +16,7 @@ Single root `package main`, a few hundred lines by design:
 | `suggest.go` | draft generation, including the draft's header comment |
 | `agent_docs.go` | the discovery pointer written to `AGENTS.md` / `CLAUDE.md` |
 | `main.go` | cobra wiring, exit codes |
-| `skills/workstree/SKILL.md` | optional Claude Code skill; authoring only |
+| `skills/workstree/SKILL.md` | optional agent skill; authoring only |
 
 ## Verify before claiming done
 
@@ -30,7 +29,7 @@ Tests use real git repos and worktrees in temp dirs. For changes to `suggest`,
 in a throwaway clone, then `workstree init` on a worktree of it, and read what it
 printed.
 
-## Hard rules
+## Pay attention to these when making changes:
 
 - **`init` never guesses.** Detection and defaults live in `suggest`; what executes is
   exactly what the committed file declares.
