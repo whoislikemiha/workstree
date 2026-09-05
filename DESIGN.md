@@ -24,9 +24,9 @@ Three parts:
 1. **A convention**: one declarative file at repo root describing what a fresh worktree
    needs to become a working environment.
 2. **A tiny reference CLI** (~a few hundred lines) that executes the convention.
-3. **An agent-facing doc/skill**, distributed via a one-line reference in
-   `AGENTS.md` / `CLAUDE.md`, covering both using the convention and *writing* it for
-   repos that lack it.
+3. **A discovery pointer** in `AGENTS.md` / `CLAUDE.md` — part of the convention, since
+   a file nobody is told about is not a convention. An optional skill covers *writing*
+   the file for repos that lack it.
 
 ## The convention: `worktree.toml`
 
@@ -112,22 +112,31 @@ the binary or vendor the logic.
 
 ## Distribution: a line in AGENTS.md / CLAUDE.md
 
-The adoption mechanism. Repos add:
+The adoption mechanism. Agents don't scan repo roots for conventions they've never
+heard of, but they do read `AGENTS.md` / `CLAUDE.md` at session start in the main
+checkout — exactly where they are when they decide to create a worktree. Repos add:
 
-> When working with git worktrees, read `worktree.toml` first. It is the repo's source
-> of truth for files to copy, setup commands, readiness checks, and teardown/cleanup
-> before removing a worktree. If the `workstree` CLI is available, use
-> `workstree init/teardown` to execute those instructions.
+> When creating or removing git worktrees, read `worktree.toml` first. It declares what
+> to copy, run, and check. `workstree init <path>` does all of it in one command if
+> installed; otherwise follow the file directly. Run its `teardown`
+> (`workstree teardown <path>`) before removing a worktree.
 
-Now **any** agent in **any** harness — including a developer's interactive session that
-decided to use a worktree, with no orchestrator anywhere — discovers and uses it.
-`workstree suggest --write --agent-docs` can add this pointer during convention
-creation, preferring an existing `AGENTS.md`, then `CLAUDE.md`, and otherwise creating
-`AGENTS.md`.
+Two deliberate choices. **File first, CLI second**: an agent without the binary still
+has a complete instruction, because the file's own header comment spells out the
+manual steps; the CLI only collapses them into one command. **Short**: the line gets
+pasted into crowded files and must survive that; anything longer belongs in the file's
+comments, which the agent reads next anyway. The wording is spec'd in the README so
+third-party generators emit the same text. `workstree suggest --write --agent-docs` is
+the reference implementation, preferring an existing `AGENTS.md`, then `CLAUDE.md`,
+otherwise creating `AGENTS.md`.
+
+Consuming the convention needs nothing else — no skill, no install. The skill exists
+only for the authoring moment, and even that is mostly covered by the review checklist
+`suggest` puts at the top of the draft, at the point of use.
 
 ## The generative direction (writing the file)
 
-The skill also teaches agents to *create* `worktree.toml` for a cold repo:
+Authoring for a cold repo, as taught by the draft header and the optional skill:
 
 1. Read-only inspection: lockfiles, README, CI config, existing dev docs.
 2. Propose setup commands + copy list.

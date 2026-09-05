@@ -1,104 +1,45 @@
 ---
 name: workstree
-description: Bootstrap git worktrees into working environments and author good worktree.toml files. Use when creating a git worktree, when a fresh worktree fails to build/run (missing node_modules, .env, venv), when a repo needs a worktree.toml, or when the user mentions workstree or worktree bootstrap.
+description: Author and verify worktree.toml, the committed file declaring what a fresh git worktree needs (files to copy, setup commands, ready check, teardown). Use when a repo lacks worktree.toml, when a fresh worktree fails to build/run (missing node_modules, .env, venv), or when the user mentions workstree.
 ---
 
-# workstree — bootstrap worktrees, author worktree.toml
+# workstree — author `worktree.toml`
 
-`git worktree add` copies tracked files only. Everything gitignored — installed deps,
-`.env` files, build caches — stays behind. `worktree.toml` (committed, repo root)
-declares what a fresh worktree needs. It should be understandable from comments even
-without the `workstree` CLI; the CLI is the reference executor.
+`git worktree add` copies tracked files only; everything gitignored stays behind.
+`worktree.toml` at repo root declares what a fresh worktree needs. **If the repo
+already has one, just follow it** — `workstree init <path>` if installed, otherwise
+copy/setup/ready by hand as its header comment says — and stop reading. Never start
+work in a worktree whose init failed; you'll debug the environment instead of the task.
 
-If the repo declares `teardown`, run `workstree teardown <path>` before removing a
-worktree to clean up resources owned by that worktree (for example Docker Compose
-projects, DB volumes, or local runtimes). Teardown is explicit; it does not remove the
-worktree for you.
+If the repo lacks one:
 
-## Using an existing worktree.toml
-
-After creating any worktree, always:
-
-```bash
-git worktree add <path> -b <branch>
-workstree init <path>     # copy carry-over files, run setup, run ready check
-```
-
-Exit `0` = ready. Exit `1` = a step failed (read the output; the failing step is
-named). Exit `2` = config/usage error. Never start work in a worktree whose init
-failed — you will end up debugging the environment instead of doing the task.
-
-`workstree init` is idempotent: it never overwrites existing files, so re-running
-after a failure is safe.
-
-## Authoring worktree.toml for a repo that lacks one
-
-Follow this loop — do not skip the verify step:
-
-1. **Draft**: `workstree suggest --write --agent-docs` (refuses to overwrite an
-   existing config; adds a short "read `worktree.toml`" pointer to
-   `AGENTS.md`/`CLAUDE.md`).
-   It detects ecosystems from lockfiles (root + nested dirs like `sidecar/`,
-   `src-tauri/`, `packages/*`) and proposes copy candidates from git-ignored env
-   files that actually exist.
-2. **Prune and improve the draft** — `suggest` is mechanical; you have judgment:
-   - Remove setup entries for spikes, experiments, and abandoned prototypes
-     (e.g. a `spike/` dir with its own lockfile that nobody builds).
-   - Add what detection can't see: codegen steps (`prisma generate`, protobuf),
-     DB migrations for dev, `direnv allow`, disabling repo-managed git hooks that
-     misbehave in worktrees, and teardown commands for long-lived per-worktree
-     resources.
-   - Check the copy list against the repo's docs: is there a `.env` the README
-     says to create? A certs dir? Add entries even if the file doesn't exist in
-     this checkout — missing sources are skipped gracefully, and the entry
-     documents the need.
-   - Write a `ready` check that proves the environment works and runs fast:
-     a typecheck or build, not the full test suite.
-   - Use `notes` for the why: where secrets come from, how to regenerate them,
-     anything a future agent would otherwise have to rediscover.
-3. **Verify on a throwaway worktree** — mandatory, a config derived from reading
-   is worthless until executed:
+1. **Draft**: `workstree suggest --write --agent-docs`, or hand-write it from the
+   README example. `suggest` detects lockfiles (root and nested dirs), proposes copy
+   candidates from git-ignored env files, and adds the discovery pointer to
+   `AGENTS.md` / `CLAUDE.md`. Refuses to overwrite an existing file.
+2. **Review** — `suggest` is mechanical; you have judgment:
+   - Drop setup entries for spikes and abandoned subprojects. If two lockfiles
+     coexist for one ecosystem, check which one the team actually uses.
+   - Add what detection can't see: codegen (`prisma generate`, protobuf), dev
+     migrations, `direnv allow`, repo hooks (husky) that fire before setup has run,
+     and `teardown` for per-worktree containers/volumes — prefer a repo script over
+     hardcoded docker commands so it derives the same project name/ports as setup.
+   - `setup`: lockfile-frozen (`npm ci`, `--frozen-lockfile`), deps before codegen.
+     Install nested packages with their own lockfile even if root resolution would
+     accidentally work.
+   - `copy`: only untracked files the build needs — never tracked files or rebuildable
+     artifacts. Add entries the docs say to create even if absent in this checkout;
+     missing sources are skipped and the entry documents the need.
+   - `ready`: must fail when the environment is broken — a build or typecheck, not
+     `echo ok` and not the full test suite.
+   - `notes`: the why — where secrets come from, how to regenerate them.
+   - Delete the DRAFT block from the header once reviewed.
+3. **Verify** on a throwaway worktree. Mandatory — a config that was never executed
+   is a guess:
    ```bash
-   git worktree add /tmp/workstree-verify -b workstree-verify
-   workstree init /tmp/workstree-verify        # must exit 0
-   git worktree remove --force /tmp/workstree-verify
-   git branch -D workstree-verify
+   git worktree add /tmp/wt -b wt && workstree init /tmp/wt   # must exit 0
+   git worktree remove --force /tmp/wt && git branch -D wt
    ```
-   If init fails, fix the config (not the worktree) and re-verify.
-4. **Commit** `worktree.toml` and the agent-doc instruction as a reviewable diff.
-   Flag the copy list in your report — it is usually secrets, and humans should
-   consciously approve what gets replicated into every future worktree.
-
-## Quality bar for entries
-
-- **Setup**: deterministic and lockfile-frozen (`npm ci`, not `npm install`;
-  `--frozen-lockfile` variants). Fail-fast order: dependencies before codegen
-  before anything else. Each command must be safe to run in a brand-new checkout.
-- **Copy**: minimal. Only untracked files the build/run actually needs. Never add
-  tracked files (they come with the checkout) or rebuildable artifacts
-  (`node_modules`, `dist` — setup rebuilds those).
-- **Ready**: must fail when the environment is broken. `echo ok` proves nothing;
-  a build or typecheck that needs the installed deps proves everything.
-- **Teardown**: only cleanup resources owned by this worktree. Prefer a repo script
-  such as `./scripts/worktree-runtime down -v` over hardcoded Docker commands so the
-  script can derive the same per-worktree project name/ports used during setup.
-- **Comments**: write the file so a human or non-workstree tool can follow it directly.
-  Comments should say what each field means: copy = files/directories to carry over,
-  setup = commands after creation, ready = smoke check, teardown = commands/cleanup
-  before removal.
-
-## Pitfalls
-
-- Repo-managed hooks (husky etc.) fire inside worktrees and may fail before setup
-  has run — account for them in `setup` if needed.
-- Multiple lockfiles for one ecosystem (e.g. stray `package-lock.json` next to
-  `pnpm-lock.yaml`): suggest picks by priority, but verify which one the team
-  actually uses.
-- Node resolution walks up: a nested package may build against the root
-  `node_modules` even without its own install. If its lockfile exists, install it
-  anyway — ancestry resolution is a fragile accident, not a contract.
-- Deleting a worktree deletes copied secrets with it — that's a feature; don't
-  "back them up" elsewhere.
-- `workstree teardown` is not automatic. If a worktree starts containers or other
-  long-lived services during setup, run teardown before `git worktree remove` or make
-  the owning orchestrator do so.
+   If it fails, fix the config, not the worktree, and re-verify.
+4. **Commit** `worktree.toml` and the pointer as one diff. Flag the copy list in your
+   report — it's usually secrets, and a human should consciously approve it.

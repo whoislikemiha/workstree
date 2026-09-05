@@ -117,27 +117,36 @@ type stepError struct{ err error }
 func (e *stepError) Error() string { return e.err.Error() }
 func (e *stepError) Unwrap() error { return e.err }
 
-func runInit(path string) error {
+// loadTarget resolves the worktree at path and loads its worktree.toml, printing
+// any validation warnings to stderr.
+func loadTarget(path string) (target, source, cfgPath string, cfg *Config, err error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return err
+		return "", "", "", nil, err
 	}
-	target, source, err := ResolveRoots(abs)
+	target, source, err = ResolveRoots(abs)
 	if err != nil {
-		return err
+		return "", "", "", nil, err
 	}
-	cfgPath, err := FindConfig(target, source)
+	cfgPath, err = FindConfig(target, source)
 	if err != nil {
-		return err
+		return "", "", "", nil, err
 	}
 	cfg, warnings, err := LoadConfig(cfgPath)
 	if err != nil {
-		return err
+		return "", "", "", nil, err
 	}
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "workstree: warning: %s: %s\n", cfgPath, w)
 	}
+	return target, source, cfgPath, cfg, nil
+}
 
+func runInit(path string) error {
+	target, source, _, cfg, err := loadTarget(path)
+	if err != nil {
+		return err
+	}
 	b := &Bootstrap{Target: target, Source: source, Config: cfg, Out: os.Stdout}
 	if err := b.Run(); err != nil {
 		return &stepError{err}
@@ -146,26 +155,10 @@ func runInit(path string) error {
 }
 
 func runTeardown(path string) error {
-	abs, err := filepath.Abs(path)
+	target, source, _, cfg, err := loadTarget(path)
 	if err != nil {
 		return err
 	}
-	target, source, err := ResolveRoots(abs)
-	if err != nil {
-		return err
-	}
-	cfgPath, err := FindConfig(target, source)
-	if err != nil {
-		return err
-	}
-	cfg, warnings, err := LoadConfig(cfgPath)
-	if err != nil {
-		return err
-	}
-	for _, w := range warnings {
-		fmt.Fprintf(os.Stderr, "workstree: warning: %s: %s\n", cfgPath, w)
-	}
-
 	b := &Bootstrap{Target: target, Source: source, Config: cfg, Out: os.Stdout}
 	if err := b.RunTeardown(); err != nil {
 		return &stepError{err}
@@ -202,7 +195,7 @@ func runSuggest(path string, write bool, writeAgentDocs bool) error {
 	if err := os.WriteFile(dst, []byte(draft), 0o644); err != nil {
 		return err
 	}
-	fmt.Printf("wrote %s (draft — verify on a throwaway worktree before committing)\n", dst)
+	fmt.Printf("wrote %s (draft: verify on a throwaway worktree before committing)\n", dst)
 	if writeAgentDocs {
 		agentPath, changed, err := EnsureAgentInstruction(source)
 		if err != nil {
@@ -214,32 +207,16 @@ func runSuggest(path string, write bool, writeAgentDocs bool) error {
 			fmt.Printf("agent instruction already present in %s\n", agentPath)
 		}
 	} else {
-		fmt.Printf("next: add the workstree instruction to AGENTS.md/CLAUDE.md, or rerun with --agent-docs\n")
+		fmt.Printf("next: add the worktree.toml pointer to AGENTS.md/CLAUDE.md (see README), or rerun with --agent-docs\n")
 	}
 	return nil
 }
 
 func runCheck(path string) error {
-	abs, err := filepath.Abs(path)
+	_, _, cfgPath, cfg, err := loadTarget(path)
 	if err != nil {
 		return err
 	}
-	target, source, err := ResolveRoots(abs)
-	if err != nil {
-		return err
-	}
-	cfgPath, err := FindConfig(target, source)
-	if err != nil {
-		return err
-	}
-	cfg, warnings, err := LoadConfig(cfgPath)
-	if err != nil {
-		return err
-	}
-	for _, w := range warnings {
-		fmt.Fprintf(os.Stderr, "workstree: warning: %s: %s\n", cfgPath, w)
-	}
-
 	fmt.Printf("config:      %s\n", cfgPath)
 	fmt.Printf("setup steps: %d\n", len(cfg.Setup))
 	for _, s := range cfg.Setup {

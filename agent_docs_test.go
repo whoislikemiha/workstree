@@ -25,7 +25,7 @@ func TestEnsureAgentInstructionCreatesAGENTSMD(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(content)
-	if !strings.Contains(text, "read `worktree.toml`") || !strings.Contains(text, "workstree init/teardown") {
+	if !strings.Contains(text, "read `worktree.toml`") || !strings.Contains(text, "workstree init <path>") {
 		t.Fatalf("agent instruction should point to worktree.toml as source of truth:\n%s", text)
 	}
 

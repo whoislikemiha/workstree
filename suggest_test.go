@@ -121,10 +121,12 @@ func TestSuggestEmptyRepo(t *testing.T) {
 		t.Fatalf("empty render should include fill-in hints:\n%s", out)
 	}
 	for _, want := range []string{
-		"Usable without the workstree CLI",
-		"copy lists untracked files/directories",
-		"setup lists shell commands",
-		"teardown lists shell commands",
+		"No tooling required",
+		"# setup:",
+		"# teardown:",
+		"# copy:",
+		"# ready:",
+		"delete this block",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("render should document %q for humans/tools:\n%s", want, out)

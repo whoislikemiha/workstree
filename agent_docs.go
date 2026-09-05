@@ -7,10 +7,13 @@ import (
 	"strings"
 )
 
-const agentInstruction = `## Worktree bootstrap
-
-When working with git worktrees, read ` + "`worktree.toml`" + ` first. It is the repo's source of truth for files to copy, setup commands, readiness checks, and teardown/cleanup before removing a worktree. If the ` + "`workstree`" + ` CLI is available, use ` + "`workstree init/teardown`" + ` to execute those instructions.
-`
+// agentInstruction is the discovery pointer the convention relies on. The file is
+// the source of truth; the CLI is a shortcut. Keep it short: it gets pasted into
+// crowded AGENTS.md files.
+const agentInstruction = "## Worktrees\n\n" +
+	"When creating or removing git worktrees, read `worktree.toml` first. It declares what to copy, " +
+	"run, and check. `workstree init <path>` does all of it in one command if installed; otherwise " +
+	"follow the file directly. Run its `teardown` (`workstree teardown <path>`) before removing a worktree.\n"
 
 // EnsureAgentInstruction adds the workstree instruction to the repo's agent docs.
 // It prefers an existing AGENTS.md, then an existing CLAUDE.md, and otherwise
@@ -41,7 +44,7 @@ func EnsureAgentInstruction(root string) (string, bool, error) {
 	}
 
 	text := string(content)
-	if strings.Contains(text, "read `worktree.toml`") && strings.Contains(text, "workstree init/teardown") {
+	if strings.Contains(text, "read `worktree.toml`") {
 		return path, false, nil
 	}
 	sep := "\n\n"
