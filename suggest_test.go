@@ -162,7 +162,7 @@ func TestSuggestRenderIsValidConfig(t *testing.T) {
 	}
 }
 
-func TestRunSuggestWriteCanAlsoWriteAgentDocs(t *testing.T) {
+func TestRunSuggestWriteAlsoWritesAgentDocs(t *testing.T) {
 	repo := initRepo(t)
 	touch(t, repo, "go.mod", "module x")
 
@@ -177,6 +177,21 @@ func TestRunSuggestWriteCanAlsoWriteAgentDocs(t *testing.T) {
 		t.Fatal("AGENTS.md was not written")
 	}
 	if !strings.Contains(string(content), "read `worktree.toml`") {
-		t.Fatalf("AGENTS.md missing workstree instruction:\n%s", string(content))
+		t.Fatalf("AGENTS.md missing discovery pointer:\n%s", string(content))
+	}
+}
+
+func TestRunSuggestWriteNoAgentDocs(t *testing.T) {
+	repo := initRepo(t)
+	touch(t, repo, "go.mod", "module x")
+
+	if err := runSuggest(repo, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ConfigFileName)); err != nil {
+		t.Fatal("worktree.toml was not written")
+	}
+	if _, err := os.Stat(filepath.Join(repo, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatal("AGENTS.md should not be written with --no-agent-docs")
 	}
 }

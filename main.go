@@ -81,7 +81,7 @@ func main() {
 	}
 
 	var writeSuggestion bool
-	var writeAgentDocs bool
+	var noAgentDocs bool
 	suggestCmd := &cobra.Command{
 		Use:   "suggest [path]",
 		Short: "Inspect the repo and print a draft worktree.toml (--write to save it)",
@@ -91,13 +91,13 @@ func main() {
 			if len(args) == 1 {
 				path = args[0]
 			}
-			return runSuggest(path, writeSuggestion, writeAgentDocs)
+			return runSuggest(path, writeSuggestion, !noAgentDocs)
 		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	suggestCmd.Flags().BoolVar(&writeSuggestion, "write", false, "write the draft to worktree.toml (refuses to overwrite)")
-	suggestCmd.Flags().BoolVar(&writeAgentDocs, "agent-docs", false, "with --write, add the workstree instruction to AGENTS.md/CLAUDE.md")
+	suggestCmd.Flags().BoolVar(&noAgentDocs, "no-agent-docs", false, "with --write, skip adding the discovery pointer to AGENTS.md/CLAUDE.md")
 
 	root.AddCommand(initCmd, teardownCmd, checkCmd, suggestCmd)
 
@@ -182,9 +182,6 @@ func runSuggest(path string, write bool, writeAgentDocs bool) error {
 	draft := s.Render()
 
 	if !write {
-		if writeAgentDocs {
-			return fmt.Errorf("--agent-docs requires --write")
-		}
 		fmt.Print(draft)
 		return nil
 	}
@@ -196,18 +193,17 @@ func runSuggest(path string, write bool, writeAgentDocs bool) error {
 		return err
 	}
 	fmt.Printf("wrote %s (draft: verify on a throwaway worktree before committing)\n", dst)
-	if writeAgentDocs {
-		agentPath, changed, err := EnsureAgentInstruction(source)
-		if err != nil {
-			return err
-		}
-		if changed {
-			fmt.Printf("wrote %s (agent instruction)\n", agentPath)
-		} else {
-			fmt.Printf("agent instruction already present in %s\n", agentPath)
-		}
+	if !writeAgentDocs {
+		return nil
+	}
+	agentPath, changed, err := EnsureAgentInstruction(source)
+	if err != nil {
+		return err
+	}
+	if changed {
+		fmt.Printf("wrote %s (discovery pointer)\n", agentPath)
 	} else {
-		fmt.Printf("next: add the worktree.toml pointer to AGENTS.md/CLAUDE.md (see README), or rerun with --agent-docs\n")
+		fmt.Printf("discovery pointer already present in %s\n", agentPath)
 	}
 	return nil
 }

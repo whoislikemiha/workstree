@@ -89,9 +89,8 @@ workstree init <path>      # bootstrap the worktree at <path>
 workstree teardown [path]  # run teardown commands, but do not remove the worktree
 workstree check [path]     # validate worktree.toml without executing
 workstree suggest [path]   # inspect the repo, print a draft worktree.toml
-workstree suggest --write  # ...and save it (refuses to overwrite)
-workstree suggest --write --agent-docs
-                           # ...and add the discovery pointer to AGENTS.md/CLAUDE.md
+workstree suggest --write  # ...save it and add the discovery pointer to AGENTS.md/CLAUDE.md
+                           # (refuses to overwrite worktree.toml; --no-agent-docs to skip the pointer)
 ```
 
 Exit codes: `0` ready/teardown complete · `1` a step failed · `2` usage or config
@@ -100,7 +99,7 @@ error. Config is read from the target, falling back to the source checkout.
 ## Adopting it in a repo
 
 1. **Draft** `worktree.toml` — by hand (the example above is the entire schema) or
-   with `workstree suggest --write --agent-docs`, which detects ecosystems from
+   with `workstree suggest --write`, which detects ecosystems from
    lockfiles (pnpm/npm/yarn/bun, uv/poetry/pip, go, cargo, bundler, composer; root and
    nested dirs), proposes copy candidates from git-ignored env-like files, and adds
    the discovery pointer to an existing `AGENTS.md`, else `CLAUDE.md`, else a new

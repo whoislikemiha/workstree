@@ -13,7 +13,7 @@ work in a worktree whose init failed; you'll debug the environment instead of th
 
 If the repo lacks one:
 
-1. **Draft**: `workstree suggest --write --agent-docs`, or hand-write it from the
+1. **Draft**: `workstree suggest --write`, or hand-write it from the
    README example. `suggest` detects lockfiles (root and nested dirs), proposes copy
    candidates from git-ignored env files, and adds the discovery pointer to
    `AGENTS.md` / `CLAUDE.md`. Refuses to overwrite an existing file.

@@ -126,7 +126,7 @@ has a complete instruction, because the file's own header comment spells out the
 manual steps; the CLI only collapses them into one command. **Short**: the line gets
 pasted into crowded files and must survive that; anything longer belongs in the file's
 comments, which the agent reads next anyway. The wording is spec'd in the README so
-third-party generators emit the same text. `workstree suggest --write --agent-docs` is
+third-party generators emit the same text. `workstree suggest --write` is
 the reference implementation, preferring an existing `AGENTS.md`, then `CLAUDE.md`,
 otherwise creating `AGENTS.md`.
 

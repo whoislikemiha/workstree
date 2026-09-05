@@ -26,9 +26,9 @@ gofmt -l . && go vet ./... && go test ./... -count=1
 ```
 
 Tests use real git repos and worktrees in temp dirs. For changes to `suggest`,
-`bootstrap`, or `agent_docs`, also run it on a real repo: `workstree suggest --write
---agent-docs` in a throwaway clone, then `workstree init` on a worktree of it, and read
-what it printed.
+`bootstrap`, or `agent_docs`, also run it on a real repo: `workstree suggest --write`
+in a throwaway clone, then `workstree init` on a worktree of it, and read what it
+printed.
 
 ## Hard rules
 
