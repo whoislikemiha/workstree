@@ -7,7 +7,13 @@ description: Bootstrap git worktrees into working environments and author good w
 
 `git worktree add` copies tracked files only. Everything gitignored — installed deps,
 `.env` files, build caches — stays behind. `worktree.toml` (committed, repo root)
-declares what a fresh worktree needs; `workstree` executes it.
+declares what a fresh worktree needs. It should be understandable from comments even
+without the `workstree` CLI; the CLI is the reference executor.
+
+If the repo declares `teardown`, run `workstree teardown <path>` before removing a
+worktree to clean up resources owned by that worktree (for example Docker Compose
+projects, DB volumes, or local runtimes). Teardown is explicit; it does not remove the
+worktree for you.
 
 ## Using an existing worktree.toml
 
@@ -29,7 +35,9 @@ after a failure is safe.
 
 Follow this loop — do not skip the verify step:
 
-1. **Draft**: `workstree suggest --write` (refuses to overwrite an existing config).
+1. **Draft**: `workstree suggest --write --agent-docs` (refuses to overwrite an
+   existing config; adds a short "read `worktree.toml`" pointer to
+   `AGENTS.md`/`CLAUDE.md`).
    It detects ecosystems from lockfiles (root + nested dirs like `sidecar/`,
    `src-tauri/`, `packages/*`) and proposes copy candidates from git-ignored env
    files that actually exist.
@@ -38,7 +46,8 @@ Follow this loop — do not skip the verify step:
      (e.g. a `spike/` dir with its own lockfile that nobody builds).
    - Add what detection can't see: codegen steps (`prisma generate`, protobuf),
      DB migrations for dev, `direnv allow`, disabling repo-managed git hooks that
-     misbehave in worktrees.
+     misbehave in worktrees, and teardown commands for long-lived per-worktree
+     resources.
    - Check the copy list against the repo's docs: is there a `.env` the README
      says to create? A certs dir? Add entries even if the file doesn't exist in
      this checkout — missing sources are skipped gracefully, and the entry
@@ -56,9 +65,9 @@ Follow this loop — do not skip the verify step:
    git branch -D workstree-verify
    ```
    If init fails, fix the config (not the worktree) and re-verify.
-4. **Commit** `worktree.toml` as a reviewable diff. Flag the copy list in your
-   report — it is usually secrets, and humans should consciously approve what
-   gets replicated into every future worktree.
+4. **Commit** `worktree.toml` and the agent-doc instruction as a reviewable diff.
+   Flag the copy list in your report — it is usually secrets, and humans should
+   consciously approve what gets replicated into every future worktree.
 
 ## Quality bar for entries
 
@@ -70,6 +79,13 @@ Follow this loop — do not skip the verify step:
   (`node_modules`, `dist` — setup rebuilds those).
 - **Ready**: must fail when the environment is broken. `echo ok` proves nothing;
   a build or typecheck that needs the installed deps proves everything.
+- **Teardown**: only cleanup resources owned by this worktree. Prefer a repo script
+  such as `./scripts/worktree-runtime down -v` over hardcoded Docker commands so the
+  script can derive the same per-worktree project name/ports used during setup.
+- **Comments**: write the file so a human or non-workstree tool can follow it directly.
+  Comments should say what each field means: copy = files/directories to carry over,
+  setup = commands after creation, ready = smoke check, teardown = commands/cleanup
+  before removal.
 
 ## Pitfalls
 
@@ -83,3 +99,6 @@ Follow this loop — do not skip the verify step:
   anyway — ancestry resolution is a fragile accident, not a contract.
 - Deleting a worktree deletes copied secrets with it — that's a feature; don't
   "back them up" elsewhere.
+- `workstree teardown` is not automatic. If a worktree starts containers or other
+  long-lived services during setup, run teardown before `git worktree remove` or make
+  the owning orchestrator do so.

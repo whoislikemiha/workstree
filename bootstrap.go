@@ -11,7 +11,7 @@ import (
 )
 
 // Bootstrap executes the convention against the worktree at path:
-// copy carry-over files from the source checkout, run setup, run ready.
+// copy carry-over files from the source checkout, run setup/ready, or run teardown.
 type Bootstrap struct {
 	Target string
 	Source string
@@ -36,6 +36,20 @@ func (b *Bootstrap) Run() error {
 		}
 	}
 	fmt.Fprintf(b.Out, "==> worktree ready: %s\n", b.Target)
+	return nil
+}
+
+// RunTeardown executes teardown commands in the target worktree. It does not
+// run copy/setup/ready; callers use it before removing a worktree to clean up
+// resources such as per-worktree Docker Compose stacks.
+func (b *Bootstrap) RunTeardown() error {
+	for i, cmd := range b.Config.Teardown {
+		fmt.Fprintf(b.Out, "==> teardown %d/%d: %s\n", i+1, len(b.Config.Teardown), cmd)
+		if err := b.sh(cmd); err != nil {
+			return fmt.Errorf("teardown step %d (%s) failed: %w", i+1, cmd, err)
+		}
+	}
+	fmt.Fprintf(b.Out, "==> worktree teardown complete: %s\n", b.Target)
 	return nil
 }
 

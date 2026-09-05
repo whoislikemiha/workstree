@@ -40,20 +40,26 @@ Fields (v1):
 # worktree.toml — what a fresh `git worktree add` needs to actually work.
 # Executed by `workstree` (https://github.com/.../workstree) or any compatible tool.
 
-# Commands run in the new worktree, in order.
+# setup lists shell commands to run in the new worktree, in order.
 setup = [
   "pnpm install",
   "uv sync",
 ]
 
-# Untracked files copied from the source checkout into the new worktree.
+# teardown lists shell commands to run explicitly before removing the worktree.
+# Use it to stop/delete resources owned by this worktree only.
+teardown = [
+  "./scripts/worktree-runtime down -v",
+]
+
+# copy lists untracked files copied from the source checkout into the new worktree.
 # Auditable on purpose: this list is usually secrets.
 copy = [
   ".env.local",
   "config/dev-certs/",
 ]
 
-# Optional fast smoke check; nonzero exit = worktree NOT ready.
+# ready is a fast smoke check; nonzero exit = worktree NOT ready.
 ready = "pnpm run typecheck --noEmit"
 
 # Optional hints; advisory, tool may ignore.
@@ -82,6 +88,7 @@ change — not worth defending to the death.
 ```
 workstree init <path>     # bootstrap the worktree at <path>
 workstree                 # bare: bootstrap the current worktree
+workstree teardown [path] # run cleanup commands; does not remove the worktree
 workstree check           # validate worktree.toml without executing
 ```
 
@@ -95,6 +102,11 @@ primitive it fixes:
 git worktree add ../myrepo-feature && workstree init ../myrepo-feature
 ```
 
+Behavior of `teardown`: locate the target and source checkout, read the same
+`worktree.toml`, then run only the `teardown` commands in the target, fail-fast. It is
+explicit by design: workstree does not hook into `git worktree remove`, stop arbitrary
+processes, or remove the worktree itself. Lifecycle owners can call it before removal.
+
 Embeddable by design: other tools (legwork, claude-squad, anyone) either shell out to
 the binary or vendor the logic.
 
@@ -102,11 +114,16 @@ the binary or vendor the logic.
 
 The adoption mechanism. Repos add:
 
-> After creating a git worktree, run `workstree init <path>` (config in
-> `worktree.toml`) to make it a working environment.
+> When working with git worktrees, read `worktree.toml` first. It is the repo's source
+> of truth for files to copy, setup commands, readiness checks, and teardown/cleanup
+> before removing a worktree. If the `workstree` CLI is available, use
+> `workstree init/teardown` to execute those instructions.
 
 Now **any** agent in **any** harness — including a developer's interactive session that
 decided to use a worktree, with no orchestrator anywhere — discovers and uses it.
+`workstree suggest --write --agent-docs` can add this pointer during convention
+creation, preferring an existing `AGENTS.md`, then `CLAUDE.md`, and otherwise creating
+`AGENTS.md`.
 
 ## The generative direction (writing the file)
 
@@ -117,7 +134,7 @@ The skill also teaches agents to *create* `worktree.toml` for a cold repo:
 3. **Verify — not optional**: create a throwaway worktree, run the proposed setup
    there, confirm `ready` passes. A config derived from the README without verification
    is worthless and moves the flailing one level up.
-4. Write `worktree.toml`; commit as a reviewable diff.
+4. Write `worktree.toml` and the agent-doc instruction; commit as a reviewable diff.
 
 Trigger model (as used by legwork, generalizable): lazily, on first worktree need in a
 repo lacking the file ("needs-bootstrap"); re-triggered on setup failure — **configs
@@ -150,7 +167,8 @@ product collision. **Claim registry names at repo creation.**
 
 ## Out of scope
 
-- Containers/VMs (that's devcontainers' job; this is the 90% lighter answer).
+- Owning containers/VMs as a runtime platform (that's devcontainers' job). Repos may
+  still declare shell commands that start/stop per-worktree runtimes.
 - Worktree *creation/management* (wtp, worktrunk, et al. exist; we only make the
   resulting worktree work).
 - Any coupling to legwork: independent projects, clean seam, no shared naming scheme —

@@ -9,8 +9,9 @@ rejected ideas: [DESIGN.md](DESIGN.md).
 ## Layout
 
 Single root `package main`, a few hundred lines by design: `config.go` (schema +
-validation), `git.go` (root resolution), `bootstrap.go` (copy/setup/ready),
-`suggest.go` (draft generation), `main.go` (cobra wiring).
+validation), `git.go` (root resolution), `bootstrap.go` (copy/setup/ready/teardown),
+`agent_docs.go` (AGENTS.md/CLAUDE.md instruction), `suggest.go` (draft generation),
+`main.go` (cobra wiring).
 `skills/workstree/SKILL.md` is the agent-facing skill.
 
 ## Verify before claiming done

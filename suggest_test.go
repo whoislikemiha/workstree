@@ -120,6 +120,16 @@ func TestSuggestEmptyRepo(t *testing.T) {
 	if !strings.Contains(out, "no ecosystem detected") {
 		t.Fatalf("empty render should include fill-in hints:\n%s", out)
 	}
+	for _, want := range []string{
+		"Usable without the workstree CLI",
+		"copy lists untracked files/directories",
+		"setup lists shell commands",
+		"teardown lists shell commands",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("render should document %q for humans/tools:\n%s", want, out)
+		}
+	}
 }
 
 func TestSuggestRenderIsValidConfig(t *testing.T) {
@@ -147,5 +157,24 @@ func TestSuggestRenderIsValidConfig(t *testing.T) {
 	}
 	if len(cfg.Setup) != 1 || cfg.Setup[0] != "npm ci" || cfg.Copy[0] != ".env" {
 		t.Fatalf("round-trip mismatch: %+v", cfg)
+	}
+}
+
+func TestRunSuggestWriteCanAlsoWriteAgentDocs(t *testing.T) {
+	repo := initRepo(t)
+	touch(t, repo, "go.mod", "module x")
+
+	if err := runSuggest(repo, true, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ConfigFileName)); err != nil {
+		t.Fatal("worktree.toml was not written")
+	}
+	content, err := os.ReadFile(filepath.Join(repo, "AGENTS.md"))
+	if err != nil {
+		t.Fatal("AGENTS.md was not written")
+	}
+	if !strings.Contains(string(content), "read `worktree.toml`") {
+		t.Fatalf("AGENTS.md missing workstree instruction:\n%s", string(content))
 	}
 }

@@ -17,6 +17,8 @@ const ConfigFileName = "worktree.toml"
 type Config struct {
 	// Setup commands run in the new worktree, in order.
 	Setup []string `toml:"setup"`
+	// Teardown commands clean up resources owned by the worktree, in order.
+	Teardown []string `toml:"teardown"`
 	// Copy lists untracked files/dirs copied from the source checkout.
 	// Auditable on purpose: this list is usually secrets.
 	Copy []string `toml:"copy"`
@@ -68,6 +70,11 @@ func (c *Config) validate() error {
 	for i, cmd := range c.Setup {
 		if strings.TrimSpace(cmd) == "" {
 			return fmt.Errorf("setup[%d] is empty", i)
+		}
+	}
+	for i, cmd := range c.Teardown {
+		if strings.TrimSpace(cmd) == "" {
+			return fmt.Errorf("teardown[%d] is empty", i)
 		}
 	}
 	for _, entry := range c.Copy {

@@ -19,6 +19,7 @@ func writeConfig(t *testing.T, dir, content string) string {
 func TestLoadConfigValid(t *testing.T) {
 	p := writeConfig(t, t.TempDir(), `
 setup = ["echo one", "echo two"]
+teardown = ["echo bye"]
 copy = [".env.local", "config/certs/"]
 ready = "true"
 notes = "why"
@@ -33,7 +34,7 @@ shared = ["~/.pnpm-store"]
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected warnings: %v", warnings)
 	}
-	if len(cfg.Setup) != 2 || len(cfg.Copy) != 2 || cfg.Ready != "true" {
+	if len(cfg.Setup) != 2 || len(cfg.Teardown) != 1 || len(cfg.Copy) != 2 || cfg.Ready != "true" {
 		t.Fatalf("bad parse: %+v", cfg)
 	}
 }
@@ -72,5 +73,12 @@ func TestLoadConfigRejectsEmptySetup(t *testing.T) {
 	p := writeConfig(t, t.TempDir(), `setup = ["true", " "]`)
 	if _, _, err := LoadConfig(p); err == nil {
 		t.Fatal("empty setup step should be rejected")
+	}
+}
+
+func TestLoadConfigRejectsEmptyTeardown(t *testing.T) {
+	p := writeConfig(t, t.TempDir(), `teardown = ["true", " "]`)
+	if _, _, err := LoadConfig(p); err == nil {
+		t.Fatal("empty teardown step should be rejected")
 	}
 }

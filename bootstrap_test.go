@@ -174,6 +174,53 @@ func TestBootstrapReadyFailure(t *testing.T) {
 	}
 }
 
+func TestBootstrapTeardownRunsOnlyTeardownSteps(t *testing.T) {
+	repo := initRepo(t)
+	wt := addWorktree(t, repo)
+	cfg := &Config{
+		Setup:    []string{"echo setup-ran > setup-marker"},
+		Ready:    "echo ready-ran > ready-marker",
+		Teardown: []string{"echo teardown-ran > teardown-marker"},
+	}
+
+	var out bytes.Buffer
+	b := &Bootstrap{Target: wt, Source: repo, Config: cfg, Out: &out}
+	if err := b.RunTeardown(); err != nil {
+		t.Fatalf("teardown failed: %v\noutput:\n%s", err, out.String())
+	}
+	if _, err := os.Stat(filepath.Join(wt, "teardown-marker")); err != nil {
+		t.Fatal("teardown step did not run")
+	}
+	if _, err := os.Stat(filepath.Join(wt, "setup-marker")); err == nil {
+		t.Fatal("setup step should not run during teardown")
+	}
+	if _, err := os.Stat(filepath.Join(wt, "ready-marker")); err == nil {
+		t.Fatal("ready check should not run during teardown")
+	}
+	if !strings.Contains(out.String(), "==> teardown 1/1") {
+		t.Fatalf("teardown output should name the step, got:\n%s", out.String())
+	}
+}
+
+func TestBootstrapTeardownFailureStops(t *testing.T) {
+	repo := initRepo(t)
+	wt := addWorktree(t, repo)
+	cfg := &Config{Teardown: []string{"false", "echo never > should-not-exist"}}
+
+	var out bytes.Buffer
+	b := &Bootstrap{Target: wt, Source: repo, Config: cfg, Out: &out}
+	err := b.RunTeardown()
+	if err == nil {
+		t.Fatal("expected teardown failure")
+	}
+	if !strings.Contains(err.Error(), "teardown step 1") {
+		t.Fatalf("error should name the failing teardown step: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(wt, "should-not-exist")); statErr == nil {
+		t.Fatal("later teardown steps must not run after a failure")
+	}
+}
+
 func TestBootstrapSkipsExistingAndSameDir(t *testing.T) {
 	repo := initRepo(t)
 	if err := os.WriteFile(filepath.Join(repo, ".env.local"), []byte("SOURCE"), 0o644); err != nil {
